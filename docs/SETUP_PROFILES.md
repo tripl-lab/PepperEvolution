@@ -106,6 +106,16 @@ So an upgrade is a change of model, and goes through a check before anything liv
 3. **Check that the models fit together** beside the speech server: warm both, and look for the client's "do not fit on the GPU together" warning. With 0.40.16 they don't fit in one Ollama process, because its scheduler evicts Nimble to load Clef Flash. Two processes do fit, one per model, at 9.5 GB and 9.8 GB of the 32 GB card, with the speech server's 8 GB. `DECIDE_SERVERS=clef-flash=http://alien3:11439` sends each model's calls to its own server.
 4. **Switch, keeping the old one for rollback.** Point the start script at the new version and model folder, restart, and keep the old binary and models until a robot session has gone well. The host logs and records in `session.json` which server version and model digests judged each session (`decide`). So records from before and after the switch can be told apart, and the evaluation set can compare them.
 
+**Alien3, switched 2026-11-23:**
+- `~/.ollama-decide/start.sh` starts two Ollama 0.40.16 processes from one model folder: `:11435` for Nimble and the scene model, and `:11439` for Clef Flash. It runs at boot from `mberg`'s crontab.
+- `.env` has `DECIDE_SERVERS=clef-flash=http://alien3:11439`.
+- The check before switching: 7 of 271 gate verdicts flip and 8 of 268 router starts change (both reviewed and accepted by the tester), and the image answers are identical. The scene model's weights are unchanged.
+- **Rollback**, until a good robot session:
+  1. Stop the pair: `kill $(cat ~/.ollama-decide/a.pid) $(cat ~/.ollama-decide/b.pid)`.
+  2. Run `~/.ollama-private/start.sh` (0.35.1, the October models).
+  3. Restore the crontab from `~/.ollama-decide/crontab.bak-2026-11-23`.
+  4. Remove `DECIDE_SERVERS` from `.env`.
+
 If the decision models fail at start-up, the host now logs an error with the server's own reason, rather than only "400 Bad Request".
 
 ## Privacy

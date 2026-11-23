@@ -41,7 +41,7 @@ from typing import Any, Dict, List, Optional, Tuple
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 STATE = os.path.join(ROOT, ".basecamp", "pepper-sync.json")
 WIKI_CACHE = os.path.join(ROOT, ".basecamp", "wiki")
-REPO = "mfbergmann/PepperEvolution"
+REPO = "tripl-lab/PepperEvolution"
 GITHUB = f"https://github.com/{REPO}"
 WIKI_GIT = f"{GITHUB}.wiki.git"
 

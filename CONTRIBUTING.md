@@ -92,7 +92,7 @@ Black at 120 columns, flake8, type hints and docstrings in host code, `loguru` f
 
 ## Where help is wanted
 
-The plan is in [`docs/ROADMAP.md`](docs/ROADMAP.md), tracked as [GitHub milestones](https://github.com/mfbergmann/PepperEvolution/milestones) with one issue per piece of work, and summarised in the [wiki](https://github.com/mfbergmann/PepperEvolution/wiki). Good places to start:
+The plan is in [`docs/ROADMAP.md`](docs/ROADMAP.md), tracked as [GitHub milestones](https://github.com/tripl-lab/PepperEvolution/milestones) with one issue per piece of work, and summarised in the [wiki](https://github.com/tripl-lab/PepperEvolution/wiki). Good places to start:
 
 - **Testing on your Pepper** and reporting what differs: detection ranges, gaze, voices, animations, timing.
 - **Other AI providers**: the host talks to Claude, OpenAI, and any OpenAI-compatible server (`OLLAMA_URL`, e.g. Ollama). Reports on how other models handle Pepper's tools are welcome, especially whether a model describes the room without taking a photo first.

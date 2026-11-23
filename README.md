@@ -27,7 +27,7 @@ A cloud-AI control system for SoftBank Pepper robots. A small bridge server on t
 ## Quick start
 
 ```bash
-git clone https://github.com/mfbergmann/PepperEvolution.git
+git clone https://github.com/tripl-lab/PepperEvolution.git
 cd PepperEvolution
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
@@ -158,12 +158,12 @@ Running it yourself: [docs/SETUP_PROFILES.md](docs/SETUP_PROFILES.md) explains t
 | `FACE_ID_DETECTOR`, `FACE_ID_MODEL`, `FACE_ID_THRESHOLD`, `FACE_ID_THREADS` | YuNet, `w600k_r50`, `0.45`, `2` | The model files, the score a face needs (mean of its three best cosines against the gallery; measured for these models only) and the CPU threads |
 | `STT_SECOND_PASS` | *(empty)* | With `STT_BACKEND=sherpa`: a sherpa-onnx Cohere Transcribe folder (`sherpa-onnx-cohere-transcribe-14-lang-int8-*`); each utterance the streaming recogniser finishes is read again by Cohere Transcribe for the final text. Offline in Pepper's fan noise about half the word errors, for ~0.65 s more after you stop speaking on the desktop CPU. Or a server address (`scripts/stt_server.py` on a GPU machine, e.g. `http://alien3:11436` with the full model in bf16: ~0.1 s), or both separated by commas, tried in order |
 | `WAIT_FOR_UNFINISHED` | `true` | Voice: when an utterance clearly stops mid-sentence ("How do you feel about"), wait up to 2.5 s for the rest and answer the whole sentence |
-| `BEAMFORM` | `false` | With bridge 0.8: stream all four head microphones and beamform them into one channel before speech recognition, against Pepper's fan noise ([#34](https://github.com/mfbergmann/PepperEvolution/issues/34)) |
+| `BEAMFORM` | `false` | With bridge 0.8: stream all four head microphones and beamform them into one channel before speech recognition, against Pepper's fan noise ([#34](https://github.com/tripl-lab/PepperEvolution/issues/34)) |
 | `RECORD_MICROPHONES` | `false` | With `BEAMFORM` and `SESSION_DIR`: keep the four microphones as `microphones.wav` in the session folder, for tuning offline. With `LOCAL_MICROPHONE`: also `local_microphone.wav` |
 | `RECORD_CAMERA` | `false` | With `SESSION_DIR` and the camera stream (`DECIDE_URL`, `VISION_STREAM`): keep every frame the camera streams (320×240 JPEG) in `camera/` in the session folder, with the head's angles and the people count in `camera/frames.jsonl`. With `WATCH_ROOM` that is the whole session, at 0.5 fps while nobody is in view and 1 fps while someone is: roughly 30-60 MB an hour |
-| `MAP` | `false` | With bridge 0.8 and `MEMORY_DIR`: a map made by exploring (started from the web UI's map panel), named places on it, the "Where you are" line and the place tools (`go_to_place`, ...) ([#36](https://github.com/mfbergmann/PepperEvolution/issues/36)) |
-| `LOCAL_MICROPHONE` | *(empty)* | With `VOICE_INPUT`: listen to a microphone on the host instead of Pepper's head (`default`, or a source from `pactl list short sources`), muted while Pepper speaks. Needs `parecord` (PipeWire or PulseAudio) ([#34](https://github.com/mfbergmann/PepperEvolution/issues/34)) |
-| `WATCH_ROOM` | `false` | Keep the camera streaming slowly (0.5 fps) while nobody is in view, and look closer when the view changes ([#33](https://github.com/mfbergmann/PepperEvolution/issues/33)) |
+| `MAP` | `false` | With bridge 0.8 and `MEMORY_DIR`: a map made by exploring (started from the web UI's map panel), named places on it, the "Where you are" line and the place tools (`go_to_place`, ...) ([#36](https://github.com/tripl-lab/PepperEvolution/issues/36)) |
+| `LOCAL_MICROPHONE` | *(empty)* | With `VOICE_INPUT`: listen to a microphone on the host instead of Pepper's head (`default`, or a source from `pactl list short sources`), muted while Pepper speaks. Needs `parecord` (PipeWire or PulseAudio) ([#34](https://github.com/tripl-lab/PepperEvolution/issues/34)) |
+| `WATCH_ROOM` | `false` | Keep the camera streaming slowly (0.5 fps) while nobody is in view, and look closer when the view changes ([#33](https://github.com/tripl-lab/PepperEvolution/issues/33)) |
 | `VOICE_GLANCES` | `false` | With `SOUND_DIRECTION` and `WATCH_ROOM`: turn the head towards a voice from where nobody is seen, so the camera can find the speaker |
 | `INITIATIVE` | `false` | Pepper may speak unprompted: to someone lingering quietly nearby, or once more after an unanswered question (at most every 3 minutes; 90 s for a follow-up question) |
 | `EXPECTATIONS` | `false` | Before a turn or a drive towards someone, note what should change; afterwards compare it with what Pepper perceives, and tell the mind about a surprise (#30) |
@@ -182,7 +182,7 @@ PEPPER_VIRTUAL_BRIDGE=http://127.0.0.1:8899 pytest tests/test_virtual_naoqi.py -
 python scripts/smoke_host.py --fake            # the whole host stack with the real model, no robot
 ```
 
-Version 0.7.0; see [CHANGELOG.md](CHANGELOG.md). Milestones and progress are also tracked in the [wiki](https://github.com/mfbergmann/PepperEvolution/wiki) and under [GitHub milestones](https://github.com/mfbergmann/PepperEvolution/milestones).
+Version 0.7.0; see [CHANGELOG.md](CHANGELOG.md). Milestones and progress are also tracked in the [wiki](https://github.com/tripl-lab/PepperEvolution/wiki) and under [GitHub milestones](https://github.com/tripl-lab/PepperEvolution/milestones).
 
 Picking the work up in a new session: start with [docs/HANDOFF.md](docs/HANDOFF.md). The design the project is building towards is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 

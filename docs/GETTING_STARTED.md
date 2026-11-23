@@ -11,7 +11,7 @@ Which setup? [SETUP_PROFILES.md](SETUP_PROFILES.md) compares running with only c
 ## Installation
 
 ```bash
-git clone https://github.com/mfbergmann/PepperEvolution.git
+git clone https://github.com/tripl-lab/PepperEvolution.git
 cd PepperEvolution
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt

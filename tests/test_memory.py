@@ -4,6 +4,8 @@ Long-term memory (src/memory): the store's rules, consent from what was actually
 
 from datetime import datetime, timedelta
 
+from pathlib import Path
+
 import pytest
 
 from src.ai.manager import AIManager
@@ -91,6 +93,43 @@ class TestStore:
         assert [p.name for p in store.people()] == ["Sam"]
         assert store.search("jazz") == [] and len(store.search("lab")) == 1  # lab facts do not expire
         store.close()
+
+
+class TestAdmin:
+    """scripts/memory_admin.py: correcting a spelling and keeping someone until forgotten (2026-11-26)."""
+
+    def admin(self, tmp_path, *argv):
+        import importlib.util
+
+        path = Path(__file__).resolve().parents[1] / "scripts" / "memory_admin.py"
+        spec = importlib.util.spec_from_file_location("memory_admin", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.main(["--dir", str(tmp_path), *argv])
+
+    def test_rename_corrects_the_spelling_and_the_lookup(self, store, tmp_path):
+        mira = store.add_person("Myra", '"yes"')
+        assert store.rename(mira.id, " Mira  ")
+        assert store.person(mira.id).name == "Mira"
+        assert [p.id for p in store.find_people("mira")] == [mira.id]
+        assert not store.rename(999, "Nobody")
+
+    def test_admin_rename_and_keep(self, store, tmp_path, capsys):
+        mira = store.add_person("Myra", '"yes"')
+        store.close()
+        self.admin(tmp_path, "rename", str(mira.id), "Mira")
+        self.admin(tmp_path, "keep", str(mira.id), "--note", "asked for in writing")
+        out = capsys.readouterr().out
+        assert "is now Mira" in out and "kept until forgotten" in out
+        again = MemoryStore(str(tmp_path / "pepper.sqlite"))
+        assert again.person(mira.id).name == "Mira" and again.person(mira.id).written_consent
+        again.close()
+
+    def test_admin_keep_needs_a_note(self, store, tmp_path):
+        mira = store.add_person("Mira", '"yes"')
+        store.close()
+        with pytest.raises(Exception):
+            self.admin(tmp_path, "keep", str(mira.id))
 
 
 class TestConsent:

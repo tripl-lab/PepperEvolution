@@ -287,6 +287,17 @@ class MemoryStore:
         with self._db:
             self._db.execute("UPDATE people SET written_consent = ? WHERE id = ?", (note.strip()[:300], person_id))
 
+    def rename(self, person_id: int, name: str) -> bool:
+        """Correct how a stored name is written (Pepper only hears names, so it can spell them wrong)."""
+        name = " ".join(name.split())
+        if not name:
+            raise ValueError("a name is needed")
+        with self._db:
+            cur = self._db.execute(
+                "UPDATE people SET name = ?, name_key = ? WHERE id = ?", (name, name_key(name), person_id)
+            )
+        return bool(cur.rowcount)
+
     def forget(self, person_id: int) -> bool:
         """Delete a person, their identity, their facts and their place in episodes, in one transaction."""
         with self._db:

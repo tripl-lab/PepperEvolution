@@ -7,6 +7,8 @@ run the expiry sweep.
     python scripts/memory_admin.py show 3               # one person: consent note, facts, sessions
     python scripts/memory_admin.py facts                # facts about the lab
     python scripts/memory_admin.py forget 3             # delete person #3, their identity, facts and place in sessions
+    python scripts/memory_admin.py rename 3 Monika      # correct how a stored name is spelled
+    python scripts/memory_admin.py keep 3 --note "..."  # keep until forgotten: say whose consent and how it was given
     python scripts/memory_admin.py delete-fact 12
     python scripts/memory_admin.py sweep                # delete what has expired (the host also does this at start)
     python scripts/memory_admin.py episodes
@@ -30,8 +32,12 @@ def main(argv=None):
     load_dotenv()
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--dir", default=os.getenv("MEMORY_DIR"), help="the memory folder (default: MEMORY_DIR)")
-    parser.add_argument("command", choices=["list", "show", "facts", "forget", "delete-fact", "sweep", "episodes"])
+    parser.add_argument(
+        "command", choices=["list", "show", "facts", "forget", "delete-fact", "sweep", "episodes", "rename", "keep"]
+    )
     parser.add_argument("id", nargs="?", type=int)
+    parser.add_argument("name", nargs="?", help="rename: the name as it should be written")
+    parser.add_argument("--note", default="", help="keep: whose consent to keep them, and how it was given")
     args = parser.parse_args(argv)
     if not args.dir:
         sys.exit("No memory folder: set MEMORY_DIR or pass --dir")
@@ -68,6 +74,15 @@ def main(argv=None):
                 print(f"#{f.id}  {f.text}  ({f.created_at[:10]})")
         elif args.command == "forget":
             print("forgotten" if store.forget(args.id) else f"No person #{args.id}")
+        elif args.command == "rename":
+            if not args.name:
+                sys.exit("rename needs the new name")
+            print(f"#{args.id} is now {args.name}" if store.rename(args.id, args.name) else f"No person #{args.id}")
+        elif args.command == "keep":
+            if store.person(args.id) is None:
+                sys.exit(f"No person #{args.id}")
+            store.keep_written(args.id, args.note)  # refuses an empty note
+            print(f"#{args.id} kept until forgotten ({args.note.strip()})")
         elif args.command == "delete-fact":
             print("deleted" if store.delete_fact(args.id) else f"No fact #{args.id}")
         elif args.command == "sweep":

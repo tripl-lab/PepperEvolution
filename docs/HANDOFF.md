@@ -199,12 +199,12 @@ Solo, in the tester's office (small, with glass walls and a monitor). Five host 
 
 ## Robot session 2026-11-26: a visitor (results; recording local, cleared by the tester for research)
 
-About 13 minutes: a visitor (a family member of the tester) talked, danced, shook hands and hugged; the tester mostly stood by. Marked `others`; the recording stays on this machine and its backup, out of GitHub, Basecamp and Brine. Aggregates only here.
+About 13 minutes: a visitor talked, danced, shook hands and hugged; the tester mostly stood by. Marked `others`; the recording stays on this machine and its backup, out of GitHub, Basecamp and Brine. Aggregates only here.
 - **The decision models worked** (the 2026-11-19 fix): the gate on every turn in 0.04-0.1 s, the router started 5 actions about 0.2 s after hearing, 775 camera judgements at 0.06 s, a wave noticed and answered.
 - **22 of the visitor's sentences went unanswered as side talk**, about 15 of them said to Pepper. The second-voice rule applied to her because the tester had been heard. Fixed in code the same day: the conversation partner (docs/MEMORY.md, "Identity"); replayed, 18 of the 22 are answered, 2026-11-05's side talk unchanged.
 - **Look-around fired 5 times mid-conversation**, each after one of those wrongly dropped sentences, turning the head away from her. Should follow from the fix; check it.
 - **The second-voice signal stayed on for 11 minutes** after the tester went quiet: two of the visitor's clips had a window just over 0.40 against the tester, which counts as the tester being heard and keeps it armed. Open, on #25.
-- **Her name:** the first pass heard it right; the Cohere second pass replaced it with another name, and Pepper used that until corrected. Pepper asked and she agreed to be remembered; stored by name only (no face or voice), corrected to "Monika" and kept until forgotten at the tester's request (`memory_admin.py rename`, `keep`).
+- **Her name:** the first pass heard it right; the Cohere second pass replaced it with another name, and Pepper used that until corrected. Pepper asked and she agreed to be remembered; stored by name only (no face or voice), its spelling corrected and kept until forgotten at the tester's request (`memory_admin.py rename`, `keep`).
 - Three first words of 5-6.7 s: she spoke while Pepper was still talking.
 
 Next session, check: a visitor talking with Pepper while the tester stays quiet (answered, `partner` in the review, no look-around); the tester and a colleague talking to each other near Pepper (still not answered).

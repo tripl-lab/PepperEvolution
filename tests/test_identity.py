@@ -38,7 +38,14 @@ from src.identity import (
     to_blob,
     unit,
 )
-from src.identity.voice import PRESENT_SCORE, SAMPLE_RATE, window_starts
+from src.identity.voice import (
+    OTHER_QUIET,
+    PRESENT_SCORE,
+    SAMPLE_RATE,
+    ConversationPartner,
+    merge_readings,
+    window_starts,
+)
 from src.memory import ConsentRequired, Memory, MemoryStore
 from src.session import SessionRecorder
 from src.world import WorldModel
@@ -466,6 +473,59 @@ class TestManager:
         result = await ai.process_user_input("go on", source="voice", open_mic=True)
         assert result["stop_reason"] != "not_addressed"
 
+    # -- the conversation partner (2026-11-26: a visitor's replies to Pepper were taken for side talk) ----------------
+
+    @staticmethod
+    def visitor(voice):
+        return VoiceReading(3.0, windows=4, score=0.1, low=0.0, high=0.2, second_voice=True, voice=voice)
+
+    def talking_with(self, ai, voice, now):
+        """The tester was heard (the second-voice signal is on), and Pepper has just answered the visitor."""
+        ai._clock = lambda: now[0]
+        ai.second_voice.update(self.mixed, now[0])
+        ai.partner.heard(voice, True, now[0])
+        ai._last_answered_at = now[0]
+
+    async def test_the_visitor_pepper_talks_with_is_answered(self, mock_robot, mock_ai_provider):
+        ai, _ = self.manager(mock_robot, mock_ai_provider, p=0.3)
+        now = [1000.0]
+        her = np.array([1.0, 0.0, 0.0])
+        self.talking_with(ai, her, now)
+        now[0] += 5
+        result = await ai.process_user_input(
+            "I hope so", source="voice", open_mic=True, voice_reading=finished(self.visitor(her))
+        )
+        assert result["stop_reason"] != "not_addressed"
+
+    async def test_after_another_voice_the_judgement_decides_again(self, mock_robot, mock_ai_provider):
+        ai, _ = self.manager(mock_robot, mock_ai_provider, p=0.3)
+        now = [1000.0]
+        her, him = np.array([1.0, 0.0, 0.0]), np.array([0.0, 1.0, 0.0])
+        self.talking_with(ai, her, now)
+        now[0] += 3
+        other = await ai.process_user_input(
+            "she means you", source="voice", open_mic=True, voice_reading=finished(self.visitor(him))
+        )
+        assert other["stop_reason"] == "not_addressed"
+        now[0] += 3
+        result = await ai.process_user_input(
+            "oh I see", source="voice", open_mic=True, voice_reading=finished(self.visitor(her))
+        )
+        assert result["stop_reason"] == "not_addressed"
+
+    async def test_a_new_voice_is_not_the_partner(self, mock_robot, mock_ai_provider):
+        ai, _ = self.manager(mock_robot, mock_ai_provider, p=0.3)
+        now = [1000.0]
+        self.talking_with(ai, np.array([1.0, 0.0, 0.0]), now)
+        now[0] += 5
+        result = await ai.process_user_input(
+            "and then we left",
+            source="voice",
+            open_mic=True,
+            voice_reading=finished(self.visitor(np.array([0.0, 1.0, 0.0]))),
+        )
+        assert result["stop_reason"] == "not_addressed"
+
     async def test_a_clear_request_is_still_answered_with_a_second_voice(self, mock_robot, mock_ai_provider):
         ai, _ = self.manager(mock_robot, mock_ai_provider, p=0.9)
         await self.answer_once(ai)
@@ -666,3 +726,53 @@ class TestSettings:
         app.logger.warning.assert_called_once()
         app.settings = SimpleNamespace(voice_id=False, second_voice=False)
         assert main.PepperEvolution.build_identifier(app) is None
+
+
+class TestConversationPartner:
+    her, him = np.array([1.0, 0.0, 0.0]), np.array([0.0, 1.0, 0.0])
+    near_her = np.array([0.8, 0.0, 0.6])  # 0.8 alike: the same speaker on another sentence
+
+    def test_her_next_words_continue_the_conversation(self):
+        p = ConversationPartner()
+        p.heard(self.her, True, 100.0)
+        assert p.continues(self.near_her, 105.0, within=60.0)
+        assert not p.continues(self.him, 105.0, within=60.0)
+
+    def test_no_conversation_without_an_answer_or_after_the_window(self):
+        p = ConversationPartner()
+        assert not p.continues(self.her, 100.0, within=60.0)
+        p.heard(self.her, True, 100.0)
+        assert not p.continues(self.her, 161.0, within=60.0)
+
+    def test_another_voice_breaks_it_until_pepper_answers_and_it_is_quiet(self):
+        p = ConversationPartner()
+        p.heard(self.her, True, 100.0)
+        p.heard(self.him, False, 103.0)  # someone else spoke, unanswered
+        assert not p.continues(self.her, 106.0, within=60.0)
+        p.heard(self.her, True, 110.0)  # Pepper answered her again, but he spoke 7 s ago
+        assert not p.continues(self.her, 112.0, within=60.0)
+        assert p.continues(self.her, 103.0 + OTHER_QUIET + 1, within=60.0)
+
+    def test_an_unknown_voice_neither_confirms_nor_breaks(self):
+        p = ConversationPartner()
+        p.heard(self.her, True, 100.0)
+        p.heard(None, False, 102.0)  # a clip too short to say
+        assert not p.continues(None, 104.0, within=60.0)
+        assert p.continues(self.her, 104.0, within=60.0)
+
+    def test_answering_someone_new_makes_them_the_partner(self):
+        p = ConversationPartner()
+        p.heard(self.her, True, 100.0)
+        p.heard(self.him, True, 105.0)
+        assert p.is_partner(self.him) and not p.is_partner(self.her)
+        assert not p.continues(self.him, 110.0, within=60.0)  # she was the other voice 5 s ago
+        p.forget()
+        assert not p.is_partner(self.him)
+
+    def test_the_voiceprint_is_never_recorded_but_survives_a_merge(self):
+        a = VoiceReading(2.0, windows=2, score=0.1, low=0.0, high=0.2, voice=self.her)
+        b = VoiceReading(2.0, windows=2, score=0.1, low=0.0, high=0.2, voice=self.near_her)
+        assert "voice" not in a.record()
+        merged = merge_readings([a, b])
+        assert merged.voice is not None and float(merged.voice @ self.her) > 0.9
+        assert "voice" not in merged.record()

@@ -5,7 +5,8 @@ One comparison at a time on its own thread, so the audio loop never waits for it
 CPU, or with VOICE_ID_URL from the same model on a GPU machine in the lab (``scripts/stt_server.py``, stateless: it gets
 audio and returns vectors, and knows nobody), falling back to the CPU when that fails. The comparing is always here. The
 audio and the embeddings made from it live only for the length of a call: nothing is written anywhere, and someone who
-is not enrolled leaves no trace. What comes out is a :class:`VoiceReading`, made of numbers and, when confident, a name.
+is not enrolled leaves no trace. One exception, in memory only: the voiceprint of whoever Pepper is talking with is held
+for as long as that conversation lasts (:class:`ConversationPartner`), and dropped when it ends or the host stops. What comes out is a :class:`VoiceReading`, made of numbers and, when confident, a name.
 
 How the numbers are used, thresholds included, is in docs/MEMORY.md ("Identity"), with what they were measured on.
 """
@@ -15,7 +16,7 @@ import base64
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -80,10 +81,16 @@ class VoiceReading:
     second_voice: bool = False  # the low score says part of this clip is not an enrolled voice
     spent: float = 0.0  # seconds on the worker thread
     via: Optional[str] = None  # where the embeddings were made: "remote" (VOICE_ID_URL) or "local"
+    # the whole clip's voiceprint, for ConversationPartner only: in memory, never recorded or stored
+    voice: Optional[np.ndarray] = field(default=None, repr=False, compare=False)
 
     def record(self) -> Dict[str, Any]:
         """For the session record (turns.jsonl): numbers and, if confident, the name. Never an embedding."""
-        out = {k: round(v, 3) if isinstance(v, float) else v for k, v in self.__dict__.items() if v is not None}
+        out = {
+            k: round(v, 3) if isinstance(v, float) else v
+            for k, v in self.__dict__.items()
+            if v is not None and k != "voice"
+        }
         if not self.second_voice:
             out.pop("second_voice", None)
         return out
@@ -120,6 +127,7 @@ def read_voice(
         person_id=whole.person_id if known else None,
         name=whole.name if known else None,
         second_voice=mixed,
+        voice=vectors[0],
     )
 
 
@@ -143,7 +151,12 @@ def merge_readings(readings: Sequence[VoiceReading]) -> VoiceReading:
         second_voice=mixed,
         spent=sum(r.spent for r in readings),
         via=next((r.via for r in readings if r.via == "local"), next((r.via for r in readings if r.via), None)),
+        voice=_mean_voice([r.voice for r in readings if r.voice is not None]),
     )
+
+
+def _mean_voice(voices: Sequence[np.ndarray]) -> Optional[np.ndarray]:
+    return unit(np.mean(voices, axis=0)) if voices else None
 
 
 class SecondVoiceWatch:
@@ -181,6 +194,68 @@ class SecondVoiceWatch:
 
     def active(self, now: float) -> bool:
         return self.heard_at is not None and now - self.heard_at < self.window
+
+
+SAME_SPEAKER = 0.35  # whole clips this alike are one speaker (2026-11-26, docs/MEMORY.md "Identity")
+PARTNER_CLIPS = 3  # the partner's last answered clips kept to compare with; the best match counts
+OTHER_QUIET = 30.0  # seconds another voice must have been quiet: 2026-11-05 replayed, 0 more answered of 22 side talk
+
+
+class ConversationPartner:
+    """Who Pepper is talking with: the voice of the turns it answered, so a visitor who is the one in the conversation
+    is not taken for side talk because the tester was heard earlier (2026-11-26: 22 of a visitor's sentences went
+    unanswered, about 15 of them said to Pepper). Clock-free: the caller passes the time and the conversation window.
+
+    An utterance continues the conversation when its voice matches the partner, no other voice has been heard since
+    Pepper last answered, and none in the last ``OTHER_QUIET`` seconds. These keep the case #25 is about: the tester
+    asks Pepper something, then turns to a colleague; while the colleague is part of the talk, the tester's words are
+    left to the judgement. Replayed (2026-11-26): 18 of the visitor's 22 dropped sentences answered, 1 of them side
+    talk; 2026-11-05 (tester and colleague): 5 of 22 answered, as before; 2026-11-19 (tester alone): unchanged. Without
+    the quiet window, 2026-11-05 had 4 more answered: clips holding both voices still sound like the partner.
+
+    The partner's voice is held in memory only, for as long as the conversation lasts, and never written anywhere. A
+    clip too short to say (no voice) neither confirms nor breaks the conversation, and is not counted as the partner.
+    """
+
+    def __init__(self, same: float = SAME_SPEAKER, keep: int = PARTNER_CLIPS, quiet: float = OTHER_QUIET):
+        self.same = same
+        self.keep = keep
+        self.quiet = quiet
+        self._voices: List[np.ndarray] = []
+        self._answered_at: Optional[float] = None
+        self._other_since = False
+        self._other_at: Optional[float] = None
+
+    def is_partner(self, voice: Optional[np.ndarray]) -> bool:
+        return voice is not None and any(float(voice @ v) >= self.same for v in self._voices)
+
+    def continues(self, voice: Optional[np.ndarray], now: float, within: float) -> bool:
+        """Does this voice carry on the conversation Pepper is having? ``within``: the gate's conversation window."""
+        if self._answered_at is None or now - self._answered_at > within:
+            return False
+        if self._other_at is not None and now - self._other_at < self.quiet:
+            return False
+        return not self._other_since and self.is_partner(voice)
+
+    def heard(self, voice: Optional[np.ndarray], answered: bool, now: float):
+        """After the gate decided: ``answered`` means Pepper replies to this voice."""
+        if voice is None:
+            if answered:
+                self._answered_at = now  # still the same conversation, but nothing to learn the voice from
+            return
+        if answered:
+            if self._voices and not self.is_partner(voice):
+                self._voices = []  # someone new is the one Pepper talks with; the one before is another voice now
+                self._other_at = now
+            self._voices = (self._voices + [voice])[-self.keep :]
+            self._answered_at = now
+            self._other_since = False
+        elif not self.is_partner(voice):
+            self._other_since = True
+            self._other_at = now
+
+    def forget(self):
+        self._voices, self._answered_at, self._other_since, self._other_at = [], None, False, None
 
 
 class SpeakerModel:

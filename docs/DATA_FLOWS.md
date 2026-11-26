@@ -26,4 +26,4 @@ The code enforces this table: `src/orchestra/engines.py` lists each destination 
 
 ## What the recording notice does not yet say (2026-11-10)
 
-The tester is rewriting the notice. Against this table, the printed one says recordings are "kept on our lab's own computers", and does not mention: the encrypted off-site copy at Backblaze; audio and frames processed on Alien3; voices and faces compared with enrolled people as they are heard and seen; words sent to Brine while it is being tested; deletion reaching backups within 30 days.
+The tester is rewriting the notice. Against this table, the printed one says recordings are "kept on our lab's own computers", and does not mention: the encrypted off-site copy at Backblaze; audio and frames processed on Alien3; voices and faces compared with enrolled people as they are heard and seen; the voice of whoever Pepper is talking with held in memory for the length of that conversation, to tell their words from side talk (2026-11-26, never stored); words sent to Brine while it is being tested; deletion reaching backups within 30 days.

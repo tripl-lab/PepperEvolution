@@ -63,6 +63,7 @@ def turn_lines(turn: Dict[str, Any]) -> List[str]:
         looking += ", alone with Pepper" if gate.get("alone") else ""
         looking += ", a second voice heard lately" if gate.get("second_voice") else ""
         looking += " (which changed the answer)" if gate.get("second_voice_decided") else ""
+        looking += ", the voice Pepper was talking with" if gate.get("partner") else ""
         lines.append(f"      gate: p={gate.get('p')} {verdict}{looking} ({gate.get('seconds')} s)")
     if turn.get("identity"):
         lines.append(f"      voice: {voice_line(turn['identity'])}")
@@ -198,6 +199,10 @@ def review(folder: str) -> str:
         if (t.get("addressee") or {}).get("second_voice_decided"):
             answer = "answered" if t["addressee"].get("addressed") else "not answered"
             flags.append(f"{answer} because of a second voice (was it right?): {t.get('text')!r}")
+        if (t.get("addressee") or {}).get("partner") and t["addressee"].get("addressed"):
+            flags.append(
+                f"answered as the conversation partner despite a second voice (was it right?): {t.get('text')!r}"
+            )
         if (t.get("identity") or {}).get("error"):
             flags.append(f"voice reading failed: {t['identity']['error']}")
     for t in gated_out:

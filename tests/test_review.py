@@ -144,3 +144,17 @@ def test_a_session_without_decision_models_is_flagged(tmp_path):
     (tmp_path / "turns.jsonl").write_text("\n".join(json.dumps(t) for t in turns) + "\n")
     text = load_review().review(str(tmp_path))
     assert "gate answered on" not in text and "router chose nothing" not in text
+
+
+def test_answers_carried_by_the_conversation_partner_are_flagged(tmp_path):
+    turn = {
+        "at": "2026-11-26T17:03:28.000",
+        "heard": "2026-11-26T17:03:28.000",
+        "source": "voice",
+        "text": "I hope so",
+        "addressee": {"p": 0.3, "addressed": True, "second_voice": True, "partner": True, "seconds": 0.05},
+    }
+    (tmp_path / "turns.jsonl").write_text(json.dumps(turn) + "\n")
+    text = load_review().review(str(tmp_path))
+    assert "the voice Pepper was talking with" in text
+    assert "answered as the conversation partner despite a second voice" in text

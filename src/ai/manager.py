@@ -16,7 +16,7 @@ from typing import Any, Awaitable, Callable, Deque, Dict, List, Optional, Sequen
 from loguru import logger
 
 from ..decide import judge_addressee
-from ..identity.voice import SecondVoiceWatch
+from ..identity.voice import ConversationPartner, SecondVoiceWatch
 from ..decide.router import Routed
 from ..decide.router import choose as choose_action
 from ..decide.router import plan as plan_action
@@ -206,6 +206,7 @@ class AIManager:
         self.voice_id = False
         self.second_voice_gate = False
         self.second_voice = SecondVoiceWatch()
+        self.partner = ConversationPartner()  # whose voice Pepper is talking with, in memory only
         self.voice_glances = False  # VOICE_GLANCES: turn the head towards a voice from where nobody is seen (#33)
         self.head_angles: Optional[Callable[[], Optional[Sequence[float]]]] = None  # main.py: the camera's head angles
         self._last_glance: Optional[float] = None
@@ -323,6 +324,8 @@ class AIManager:
                 meant = True  # stopping is never held back because of a second voice
                 rec["addressee"]["addressed"] = True
             rec["path"] = path
+            if gate_on:
+                self._note_partner(rec, meant)
             self._note_heard(user_input, source, addressed=meant)
             self._ledger(self.outcomes.heard, user_input, routed.intent if meant and routed is not None else None)
             if path == route.NOT_ADDRESSED:
@@ -412,6 +415,14 @@ class AIManager:
         if watch is not None:
             self.second_voice = watch
 
+    def _note_partner(self, rec: Dict[str, Any], answered: bool):
+        """Tell the conversation partner what the gate decided, once this utterance's voice is known; a reading still
+        running settles it when it comes in (``_take_voice_reading``). The voiceprint leaves the record here."""
+        if "_voice" in rec:
+            self.partner.heard(rec.pop("_voice"), answered, self._clock())
+        else:
+            rec["_partner_pending"] = answered
+
     async def _wait_for_voice_reading(self, reading: Optional["asyncio.Future"], rec: Dict[str, Any], wait: float):
         """Give the reading a moment, never longer. Without it this turn goes on as if there were none, and the
         reading still counts for the turns after it."""
@@ -431,6 +442,9 @@ class AIManager:
             late = bool(rec.get("identity", {}).get("late"))
             reading = done.result()
             signal = self.second_voice.update(reading, self._clock())
+            rec["_voice"] = reading.voice  # not a recorded key (_finish_record): for the partner, then dropped
+            if "_partner_pending" in rec:
+                self._note_partner(rec, rec.pop("_partner_pending"))
             rec["identity"] = {
                 **reading.record(),
                 **({"second_voice_signal": True} if signal else {}),
@@ -502,7 +516,12 @@ class AIManager:
         if self.second_voice_gate and verdicts.second_voice_matters:
             await self._wait_for_voice_reading(voice_reading, rec, VOICE_READING_WAIT)  # only when it can change this
         second_voice = self.second_voice_gate and self.second_voice.active(self._clock())
-        verdict = verdicts.final(second_voice)
+        partner = False
+        if second_voice:
+            # the voice Pepper has been talking with, and no one else lately: a conversation, not side talk
+            # (2026-11-26: a visitor's replies to Pepper were dropped because the tester had been heard)
+            partner = self.partner.continues(rec.get("_voice"), self._clock(), window)
+        verdict = verdicts.final(second_voice and not partner)
         context = addressee_context(self.world) if self.world is not None else {}
         rec["addressee"] = {
             "pepper_said": context.get("pepper_said"),  # for re-benchmarking the judgement with it (#25)
@@ -513,6 +532,7 @@ class AIManager:
             "after_question": answering,
             "alone": alone,
             "second_voice": second_voice,
+            "partner": partner,  # the conversation partner's voice carried it past the second voice
             "second_voice_decided": verdict != verdicts.usual,  # it changed the answer: look at these in review
             "addressed": verdict,
             "seconds": round(self._clock() - started, 3),
